@@ -109,14 +109,8 @@ test-driver: $(LEXER_C) $(PARSER_C)
 
 # Run tests
 test: desktop
-	@echo "=== Running Tests ==="
-	@echo "Test 1: Basic arithmetic"
-	@echo 'function main() { return 1 + 2 * 3; }' | ./$(TARGET) -e
-	@echo ""
-	@echo "Test 2: Variables"
-	@echo 'function main() { let x = 10; let y = 20; return x + y; }' | ./$(TARGET) -e
-	@echo ""
-	@echo "=== Tests Complete ==="
+	@echo "=== Running Example Suite ==="
+	@sh tests/run_examples.sh ./$(TARGET)
 
 # Clean
 clean:
