@@ -10,7 +10,7 @@ extern int yyparse(void);
 extern FILE *yyin;
 
 /* 전역 프로그램 (parser.y에서 설정) */
-extern FunctionList *g_program;
+extern Program *g_program;
 
 void print_usage(const char *prog) {
     fprintf(stderr, "Usage: %s [options] <input.js>\n", prog);
@@ -70,17 +70,20 @@ int main(int argc, char *argv[]) {
     }
 
     /* 파싱 */
-    g_program = NULL;
+    g_program = new_program();
     if (yyparse() != 0) {
         fprintf(stderr, "Parse failed.\n");
         if (input_file) fclose(yyin);
+        free_program(g_program);
+        g_program = NULL;
         return 1;
     }
 
     if (input_file) fclose(yyin);
 
-    if (!g_program) {
+    if (!g_program || !g_program->items) {
         fprintf(stderr, "No program parsed.\n");
+        if (g_program) free_program(g_program);
         return 1;
     }
 

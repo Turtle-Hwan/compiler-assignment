@@ -67,6 +67,12 @@ static Function *find_function(const char *name) {
     return NULL;
 }
 
+/* 함수 등록 (실행 중 동적 등록) - 12wk function_list_append 재사용 */
+static void register_function(Function *func) {
+    if (!func) return;
+    g_functions = function_list_append(g_functions, func);
+}
+
 /* === 반환값 처리 === */
 typedef struct {
     int has_return;
@@ -310,27 +316,37 @@ static EvalResult eval_stmt(Stmt *s) {
     return result;
 }
 
-/* === 프로그램 실행 === */
-int eval_program(FunctionList *prog) {
+/* === 프로그램 실행 (순차 처리) === */
+int eval_program(Program *prog) {
     if (!prog) {
         print_output("Error: No program to execute\n");
         return -1;
     }
 
-    g_functions = prog;
+    /* 함수 테이블 초기화 */
+    g_functions = NULL;
 
     /* 10wk symtab 초기화 */
     sym_init();
 
-    /* main 함수 찾기 */
-    Function *main_func = find_function("main");
-    if (!main_func) {
-        print_output("Error: 'main' function not found\n");
-        return -1;
-    }
+    /* Top-level 항목 순차 처리 */
+    long result = 0;
+    Item *item = prog->items;
 
-    /* main 실행 */
-    long result = eval_call("main", NULL);
+    while (item) {
+        if (item->kind == ITEM_FUNCTION) {
+            /* 함수 정의 → 테이블에 등록 (12wk function_list_append 재사용) */
+            register_function(item->u.function);
+        } else if (item->kind == ITEM_STMT) {
+            /* 문장 → 즉시 실행 */
+            EvalResult r = eval_stmt(item->u.stmt);
+            if (r.has_return) {
+                result = r.return_value;
+                break;
+            }
+        }
+        item = item->next;
+    }
 
     g_functions = NULL;
     return (int)result;

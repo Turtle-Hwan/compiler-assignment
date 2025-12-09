@@ -13,6 +13,8 @@ typedef struct Param Param;
 typedef struct ParamList ParamList;
 typedef struct Function Function;
 typedef struct FunctionList FunctionList;
+typedef struct Item Item;
+typedef struct Program Program;
 
 /* 표현식 종류 */
 typedef enum {
@@ -154,6 +156,28 @@ struct FunctionList {
     Function *tail;
 };
 
+/* Top-level 항목 종류 */
+typedef enum {
+    ITEM_FUNCTION,  /* 함수 정의 */
+    ITEM_STMT       /* 문장 */
+} ItemKind;
+
+/* Top-level 항목 */
+struct Item {
+    ItemKind kind;
+    union {
+        Function *function;  /* ITEM_FUNCTION */
+        Stmt *stmt;          /* ITEM_STMT */
+    } u;
+    Item *next;
+};
+
+/* 프로그램 구조체 */
+struct Program {
+    Item *items;        /* Top-level 항목들 */
+    Item *items_tail;   /* append용 */
+};
+
 /* === 표현식 생성 함수 === */
 Expr *new_int_expr(int value);
 Expr *new_string_expr(const char *value);
@@ -184,16 +208,21 @@ ParamList *param_list_append(ParamList *list, const char *name);
 Function *new_function(const char *name, ParamList *params, StmtList *body);
 FunctionList *function_list_append(FunctionList *list, Function *func);
 
+/* === 프로그램 생성/조작 === */
+Program *new_program(void);
+void program_add_function(Program *prog, Function *func);
+void program_add_stmt(Program *prog, Stmt *stmt);
+
 /* 전역 프로그램 루트 */
-extern FunctionList *g_program;
+extern Program *g_program;
 
 /* 메모리 해제 */
 void free_expr(Expr *e);
 void free_stmt(Stmt *s);
 void free_function(Function *f);
-void free_program(FunctionList *prog);
+void free_program(Program *prog);
 
 /* === AST 시각화 === */
-int ast_to_buffer(FunctionList *prog, char *buffer, int bufsize);
+int ast_to_buffer(Program *prog, char *buffer, int bufsize);
 
 #endif /* AST_H */

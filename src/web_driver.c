@@ -21,7 +21,7 @@ extern void yy_scan_string_custom(const char *str);
 extern void yy_reset_input(void);
 
 /* 전역 프로그램 (parser.y에서 설정) */
-extern FunctionList *g_program;
+extern Program *g_program;
 
 /* 결과 버퍼 */
 #define RESULT_BUFSIZE 65536
@@ -62,18 +62,23 @@ const char *compile_mini_js(const char *js_code) {
     }
 
     /* 문자열에서 파싱 */
+    g_program = new_program();
     yy_scan_string_custom(js_code);
 
     if (yyparse() != 0) {
         yy_reset_input();
+        free_program(g_program);
+        g_program = NULL;
         strcpy(result_buffer, "=== Parse Error ===\nFailed to parse the input code.\n");
         return result_buffer;
     }
 
     yy_reset_input();
 
-    if (!g_program) {
+    if (!g_program || !g_program->items) {
         strcpy(result_buffer, "=== Error ===\nNo program parsed.\n");
+        if (g_program) free_program(g_program);
+        g_program = NULL;
         return result_buffer;
     }
 
@@ -142,18 +147,23 @@ const char *compile_to_asm(const char *js_code) {
         g_program = NULL;
     }
 
+    g_program = new_program();
     yy_scan_string_custom(js_code);
 
     if (yyparse() != 0) {
         yy_reset_input();
+        free_program(g_program);
+        g_program = NULL;
         strcpy(asm_buffer, "; Parse Error\n");
         return asm_buffer;
     }
 
     yy_reset_input();
 
-    if (!g_program) {
+    if (!g_program || !g_program->items) {
         strcpy(asm_buffer, "; No program\n");
+        if (g_program) free_program(g_program);
+        g_program = NULL;
         return asm_buffer;
     }
 
@@ -181,18 +191,23 @@ const char *execute_mini_js(const char *js_code) {
         g_program = NULL;
     }
 
+    g_program = new_program();
     yy_scan_string_custom(js_code);
 
     if (yyparse() != 0) {
         yy_reset_input();
+        free_program(g_program);
+        g_program = NULL;
         strcpy(exec_buffer, "Parse Error\n");
         return exec_buffer;
     }
 
     yy_reset_input();
 
-    if (!g_program) {
+    if (!g_program || !g_program->items) {
         strcpy(exec_buffer, "No program\n");
+        if (g_program) free_program(g_program);
+        g_program = NULL;
         return exec_buffer;
     }
 

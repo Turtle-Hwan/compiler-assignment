@@ -4,7 +4,7 @@
 #include "ast.h"
 
 /* 전역 프로그램 루트 */
-FunctionList *g_program = NULL;
+Program *g_program = NULL;
 
 /* 문자열 복제 헬퍼 */
 static char *strdup_safe(const char *s) {
@@ -214,6 +214,46 @@ FunctionList *function_list_append(FunctionList *list, Function *func) {
     return list;
 }
 
+/* === 프로그램 생성/조작 === */
+
+Program *new_program(void) {
+    Program *p = (Program *)calloc(1, sizeof(Program));
+    p->items = NULL;
+    p->items_tail = NULL;
+    return p;
+}
+
+static Item *new_item(ItemKind kind) {
+    Item *item = (Item *)calloc(1, sizeof(Item));
+    item->kind = kind;
+    item->next = NULL;
+    return item;
+}
+
+void program_add_function(Program *prog, Function *func) {
+    if (!prog || !func) return;
+    Item *item = new_item(ITEM_FUNCTION);
+    item->u.function = func;
+    if (prog->items_tail) {
+        prog->items_tail->next = item;
+    } else {
+        prog->items = item;
+    }
+    prog->items_tail = item;
+}
+
+void program_add_stmt(Program *prog, Stmt *stmt) {
+    if (!prog || !stmt) return;
+    Item *item = new_item(ITEM_STMT);
+    item->u.stmt = stmt;
+    if (prog->items_tail) {
+        prog->items_tail->next = item;
+    } else {
+        prog->items = item;
+    }
+    prog->items_tail = item;
+}
+
 /* === 메모리 해제 함수 === */
 
 void free_expr(Expr *e) {
@@ -324,14 +364,18 @@ void free_function(Function *f) {
     free(f);
 }
 
-void free_program(FunctionList *prog) {
+void free_program(Program *prog) {
     if (!prog) return;
-    Function *f = prog->head;
-    while (f) {
-        Function *next = f->next;
-        f->next = NULL;
-        free_function(f);
-        f = next;
+    Item *item = prog->items;
+    while (item) {
+        Item *next = item->next;
+        if (item->kind == ITEM_FUNCTION) {
+            free_function(item->u.function);
+        } else if (item->kind == ITEM_STMT) {
+            free_stmt(item->u.stmt);
+        }
+        free(item);
+        item = next;
     }
     free(prog);
 }
@@ -563,7 +607,7 @@ static void print_function(Function *f, int depth) {
 }
 
 /* 공개 API: AST를 버퍼에 출력 */
-int ast_to_buffer(FunctionList *prog, char *buffer, int bufsize) {
+int ast_to_buffer(Program *prog, char *buffer, int bufsize) {
     if (!buffer || bufsize <= 0) {
         return 0;
     }
@@ -574,12 +618,18 @@ int ast_to_buffer(FunctionList *prog, char *buffer, int bufsize) {
     ast_pos = 0;
     buffer[0] = '\0';
 
-    if (!prog) {
+    if (!prog || !prog->items) {
         ast_emit("(No program)\n");
     } else {
         ast_emit("Program\n");
-        for (Function *f = prog->head; f; f = f->next) {
-            print_function(f, 1);
+        for (Item *item = prog->items; item; item = item->next) {
+            if (item->kind == ITEM_FUNCTION) {
+                print_function(item->u.function, 1);
+            } else if (item->kind == ITEM_STMT) {
+                ast_emit_indent(1);
+                ast_emit("TopLevel Statement:\n");
+                print_stmt(item->u.stmt, 2);
+            }
         }
     }
 

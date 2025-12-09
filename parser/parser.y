@@ -38,7 +38,6 @@ void yyerror(const char *s);
 %type <stmt_list> stmt_list stmt_list_opt compound_stmt
 %type <param_list> param_list param_list_opt
 %type <function> function
-%type <function_list> func_list program
 
 /* 연산자 우선순위 (낮은 것부터) */
 %left OR
@@ -51,14 +50,20 @@ void yyerror(const char *s);
 
 %%
 
-/* 프로그램: 함수 리스트 */
+/* 프로그램: top-level 항목들 */
 program
-    : func_list                { g_program = $1; }
+    : program_items            { /* g_program은 이미 조작됨 */ }
     ;
 
-func_list
-    : func_list function       { $$ = function_list_append($1, $2); }
-    | function                 { $$ = function_list_append(NULL, $1); }
+program_items
+    : program_items program_item  { /* 누적 */ }
+    | program_item                { /* 첫 항목 */ }
+    | /* empty */                 { /* 빈 프로그램 허용 */ }
+    ;
+
+program_item
+    : function  { program_add_function(g_program, $1); }
+    | stmt      { program_add_stmt(g_program, $1); }
     ;
 
 /* 함수 정의: function name(params) { body } */

@@ -532,8 +532,39 @@ static void gen_function(Function *f) {
     emit("    ret\n");
 }
 
+/* === Top-level 문장들을 main으로 래핑 (11wk gen_stmt 재사용) === */
+static void gen_top_level_wrapper(Program *prog, Var *vars, int var_count) {
+    emit("\n");
+    emit("    .globl main\n");
+    emit("main:\n");
+    emit("    pushq %%rbp\n");
+    emit("    movq %%rsp, %%rbp\n");
+
+    int stack_size = (var_count == 0) ? 0 : var_count * 8;
+    stack_size = (stack_size + 15) & ~15;
+    if (stack_size > 0) {
+        emit("    subq $%d, %%rsp\n", stack_size);
+    }
+
+    char end_label[] = ".Lend_main";
+
+    /* top-level 문장만 실행 (11wk gen_stmt 재사용) */
+    Item *item = prog->items;
+    while (item) {
+        if (item->kind == ITEM_STMT) {
+            gen_stmt(item->u.stmt, vars, var_count, end_label);
+        }
+        item = item->next;
+    }
+
+    emit("    movq $0, %%rax\n");
+    emit("%s:\n", end_label);
+    emit("    leave\n");
+    emit("    ret\n");
+}
+
 /* === 프로그램 전체 코드 생성 === */
-void gen_x86_program(FunctionList *prog) {
+void gen_x86_program(Program *prog) {
     if (!prog) {
         fprintf(stderr, "No program to generate.\n");
         return;
@@ -552,16 +583,44 @@ void gen_x86_program(FunctionList *prog) {
     /* 코드 섹션 */
     emit("    .text\n");
 
-    /* 모든 함수 생성 */
-    Function *f = prog->head;
-    while (f) {
-        gen_function(f);
-        f = f->next;
+    /* 1. 함수들 먼저 생성 (12wk gen_function 재사용) */
+    Item *item = prog->items;
+    while (item) {
+        if (item->kind == ITEM_FUNCTION) {
+            gen_function(item->u.function);
+        }
+        item = item->next;
+    }
+
+    /* 2. top-level 문장이 있으면 main 래퍼 생성 */
+    int has_top_level = 0;
+    item = prog->items;
+    while (item) {
+        if (item->kind == ITEM_STMT) {
+            has_top_level = 1;
+            break;
+        }
+        item = item->next;
+    }
+
+    if (has_top_level) {
+        /* top-level 변수 수집 */
+        Var vars[128];
+        int var_count = 0;
+        int offset = -8;
+        item = prog->items;
+        while (item) {
+            if (item->kind == ITEM_STMT) {
+                collect_vars_stmt(item->u.stmt, vars, &var_count, &offset);
+            }
+            item = item->next;
+        }
+        gen_top_level_wrapper(prog, vars, var_count);
     }
 }
 
 /* 버퍼로 출력 (Wasm용) */
-int gen_x86_to_buffer(FunctionList *prog, char *buffer, int bufsize) {
+int gen_x86_to_buffer(Program *prog, char *buffer, int bufsize) {
     if (!prog || !buffer || bufsize <= 0) {
         return 0;
     }
@@ -581,11 +640,38 @@ int gen_x86_to_buffer(FunctionList *prog, char *buffer, int bufsize) {
     /* 코드 섹션 */
     emit("    .text\n");
 
-    /* 모든 함수 생성 */
-    Function *f = prog->head;
-    while (f) {
-        gen_function(f);
-        f = f->next;
+    /* 1. 함수들 먼저 생성 */
+    Item *item = prog->items;
+    while (item) {
+        if (item->kind == ITEM_FUNCTION) {
+            gen_function(item->u.function);
+        }
+        item = item->next;
+    }
+
+    /* 2. top-level 문장이 있으면 main 래퍼 생성 */
+    int has_top_level = 0;
+    item = prog->items;
+    while (item) {
+        if (item->kind == ITEM_STMT) {
+            has_top_level = 1;
+            break;
+        }
+        item = item->next;
+    }
+
+    if (has_top_level) {
+        Var vars[128];
+        int var_count = 0;
+        int offset = -8;
+        item = prog->items;
+        while (item) {
+            if (item->kind == ITEM_STMT) {
+                collect_vars_stmt(item->u.stmt, vars, &var_count, &offset);
+            }
+            item = item->next;
+        }
+        gen_top_level_wrapper(prog, vars, var_count);
     }
 
     /* 널 종료 보장 */
