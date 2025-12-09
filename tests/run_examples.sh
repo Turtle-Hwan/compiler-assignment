@@ -48,12 +48,27 @@ cleanup() {
 
 trap cleanup EXIT
 
-print_actual_output() {
+print_output_block() {
+    echo "[OUTPUT]"
     if [ -n "${TMP_OUT}" ] && [ -s "${TMP_OUT}" ]; then
-        awk 'NR==1 { printf "    output: %s\n", $0; next } { printf "            %s\n", $0 }' "${TMP_OUT}"
+        cat "${TMP_OUT}"
     else
-        echo "    output: (empty)"
+        echo "(empty)"
     fi
+    echo ""
+}
+
+print_reason_block() {
+    echo "[REASON]"
+    if [ -n "$1" ]; then
+        echo "$1"
+    fi
+    if [ -n "$2" ] && [ -s "$2" ]; then
+        cat "$2"
+    elif [ -z "$1" ]; then
+        echo "(no additional details)"
+    fi
+    echo ""
 }
 
 for JS_FILE in "${EXAMPLES_DIR}"/*.js; do
@@ -63,12 +78,13 @@ for JS_FILE in "${EXAMPLES_DIR}"/*.js; do
     }
 
     BASENAME="$(basename "${JS_FILE}" .js)"
+    DISPLAY_NAME="$(basename "${JS_FILE}")"
     EXPECTED_FILE="${EXPECTED_DIR}/${BASENAME}.txt"
 
-    echo "-> ${BASENAME}"
-
     if [ ! -f "${EXPECTED_FILE}" ]; then
-        echo "   FAIL" && echo "    - missing expected output: ${EXPECTED_FILE}"
+        echo "[FAIL] ${DISPLAY_NAME}"
+        print_reason_block "missing expected output: ${EXPECTED_FILE}" ""
+        print_output_block
         STATUS=1
         continue
     fi
@@ -77,27 +93,22 @@ for JS_FILE in "${EXAMPLES_DIR}"/*.js; do
     TMP_DIFF="$(mktemp)"
 
     if ! "${BINARY}" "${QUIET_FLAG}" -e "${JS_FILE}" >"${TMP_OUT}" 2>"${TMP_DIFF}"; then
-        echo "   FAIL"
-        echo "    - interpreter exited with non-zero status"
-        if [ -s "${TMP_DIFF}" ]; then
-            sed 's/^/    stderr: /' "${TMP_DIFF}"
-        else
-            echo "    stderr: (empty)"
-        fi
-        print_actual_output
+        echo "[FAIL] ${DISPLAY_NAME}"
+        print_reason_block "interpreter exited with non-zero status" "${TMP_DIFF}"
+        print_output_block
         STATUS=1
         clear_tmps
         continue
     fi
 
     if ! diff -u ${DIFF_FLAGS} "${EXPECTED_FILE}" "${TMP_OUT}" >"${TMP_DIFF}"; then
-        echo "   FAIL"
-        sed 's/^/    /' "${TMP_DIFF}"
-        print_actual_output
+        echo "[FAIL] ${DISPLAY_NAME}"
+        print_reason_block "output mismatch" "${TMP_DIFF}"
+        print_output_block
         STATUS=1
     else
-        echo "   PASS"
-        print_actual_output
+        echo "[PASS] ${DISPLAY_NAME}"
+        print_output_block
     fi
 
     clear_tmps
