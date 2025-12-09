@@ -9,7 +9,11 @@
 /* 심볼 테이블 초기화 */
 void sym_init(void);
 
-/* 변수 설정 (없으면 생성, 있으면 갱신)
+/* 변수 선언 (현재 스코프에 생성, 이미 있으면 갱신)
+ * 성공 시 1, 실패 시 0 */
+int sym_declare(const char *name, long value);
+
+/* 변수 설정 (가장 가까운 스코프의 변수를 갱신, 없으면 현재 스코프에 생성)
  * 성공 시 1, 실패 시 0 */
 int sym_set(const char *name, long value);
 

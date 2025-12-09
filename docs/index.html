@@ -266,20 +266,23 @@
                         <button class="btn btn-primary" onclick="runCompiler()">Compile & Run</button>
                     </div>
                 </div>
-                <textarea id="code-editor" placeholder="Enter your Mini-JS code here...">// Mini-JS Example: Fibonacci
-function fib(n) {
-    if (n <= 1) {
-        return n;
-    }
-    return fib(n - 1) + fib(n - 2);
-}
+                <textarea id="code-editor" placeholder="Enter your Mini-JS code here...">// Test 00: Hello World - String Literals
+// Purpose: Test string output with different quote types ("", '', ``)
+// Expected output:
+//   Hello, World!
+//   Single quotes work too
+//   Backticks also supported
 
 function main() {
-    let i = 0;
-    while (i < 10) {
-        console.log(fib(i));
-        i = i + 1;
-    }
+    // Double quotes
+    console.log("Hello, World!");
+
+    // Single quotes
+    console.log('Single quotes work too');
+
+    // Backticks (template literals style)
+    console.log(`Backticks also supported`);
+
     return 0;
 }</textarea>
             </div>
@@ -389,13 +392,22 @@ function main() {
         // Example programs (examples 폴더와 동일)
         const examples = {
             hello_string: `// Test 00: Hello World - String Literals
-// Purpose: Test string output with different quote types
-// Expected: Hello, World! / Single quotes work too / Backticks also supported
+// Purpose: Test string output with different quote types ("", '', \`\`)
+// Expected output:
+//   Hello, World!
+//   Single quotes work too
+//   Backticks also supported
 
 function main() {
+    // Double quotes
     console.log("Hello, World!");
+
+    // Single quotes
     console.log('Single quotes work too');
+
+    // Backticks (template literals style)
     console.log(\`Backticks also supported\`);
+
     return 0;
 }`,
             basic_arithmetic: `// Test 01: Basic Arithmetic Operations

@@ -55,36 +55,43 @@ static Sym *find_sym_in_current_scope(const char *name)
     return NULL;
 }
 
-/* 10wk 기반: 변수 설정 (수정됨) */
-int sym_set(const char *name, long value)
+static Sym *create_sym_in_current_scope(const char *name)
 {
-    /* 먼저 현재 스코프에서 찾기 */
-    Sym *s = find_sym_in_current_scope(name);
-
-    /* 없으면 상위 스코프에서 찾기 */
-    if (!s) {
-        s = find_sym(name);
-    }
-
-    /* 그래도 없으면 현재 스코프에 새로 생성 */
-    if (!s) {
-        for (int i = 0; i < MAX_SYMS; ++i) {
-            if (!table[i].in_use) {
-                table[i].in_use = 1;
-                strncpy(table[i].name, name, sizeof(table[i].name) - 1);
-                table[i].name[sizeof(table[i].name) - 1] = '\0';
-                table[i].scope_level = current_scope;  /* 현재 스코프에 생성 */
-                s = &table[i];
-                break;
-            }
+    for (int i = 0; i < MAX_SYMS; ++i) {
+        if (!table[i].in_use) {
+            table[i].in_use = 1;
+            table[i].initialized = 0;
+            table[i].scope_level = current_scope;
+            strncpy(table[i].name, name, sizeof(table[i].name) - 1);
+            table[i].name[sizeof(table[i].name) - 1] = '\0';
+            return &table[i];
         }
     }
+    fprintf(stderr, "symbol table full\n");
+    return NULL;
+}
 
+int sym_declare(const char *name, long value)
+{
+    Sym *s = find_sym_in_current_scope(name);
     if (!s) {
-        fprintf(stderr, "symbol table full\n");
-        return 0;
+        s = create_sym_in_current_scope(name);
     }
+    if (!s) return 0;
+    s->value = value;
+    s->initialized = 1;
+    return 1;
+}
 
+/* 10wk 기반: 변수 설정 (수정됨)
+ * 가장 가까운 스코프의 변수를 갱신하고, 없으면 현재 스코프에 생성 */
+int sym_set(const char *name, long value)
+{
+    Sym *s = find_sym(name);
+    if (!s) {
+        s = create_sym_in_current_scope(name);
+    }
+    if (!s) return 0;
     s->value = value;
     s->initialized = 1;
     return 1;

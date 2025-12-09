@@ -18,6 +18,7 @@ void print_usage(const char *prog) {
     fprintf(stderr, "  -e, --eval     Interpret and execute the program\n");
     fprintf(stderr, "  -c, --compile  Generate x86-64 assembly (default)\n");
     fprintf(stderr, "  -o <file>      Output file (default: out.s for compile)\n");
+    fprintf(stderr, "  -q, --quiet    Suppress interpreter banners and summary\n");
     fprintf(stderr, "  -h, --help     Show this help message\n");
 }
 
@@ -25,6 +26,7 @@ int main(int argc, char *argv[]) {
     const char *input_file = NULL;
     const char *output_file = "out.s";
     int mode_eval = 0;  /* 0: compile, 1: eval */
+    int quiet_mode = 0;
 
     /* 인자 파싱 */
     for (int i = 1; i < argc; i++) {
@@ -35,6 +37,8 @@ int main(int argc, char *argv[]) {
             mode_eval = 1;
         } else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compile") == 0) {
             mode_eval = 0;
+        } else if (strcmp(argv[i], "-q") == 0 || strcmp(argv[i], "--quiet") == 0) {
+            quiet_mode = 1;
         } else if (strcmp(argv[i], "-o") == 0) {
             if (i + 1 < argc) {
                 output_file = argv[++i];
@@ -60,7 +64,9 @@ int main(int argc, char *argv[]) {
         }
     } else {
         yyin = stdin;
-        fprintf(stderr, "Reading from stdin...\n");
+        if (!quiet_mode) {
+            fprintf(stderr, "Reading from stdin...\n");
+        }
     }
 
     /* 파싱 */
@@ -80,9 +86,13 @@ int main(int argc, char *argv[]) {
 
     if (mode_eval) {
         /* 인터프리터 모드 */
-        printf("=== Mini-JS Interpreter ===\n");
+        if (!quiet_mode) {
+            printf("=== Mini-JS Interpreter ===\n");
+        }
         int result = eval_program(g_program);
-        printf("=== Return Value: %d ===\n", result);
+        if (!quiet_mode) {
+            printf("=== Return Value: %d ===\n", result);
+        }
     } else {
         /* 컴파일러 모드 */
         FILE *out = fopen(output_file, "w");

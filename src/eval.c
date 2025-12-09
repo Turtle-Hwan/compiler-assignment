@@ -168,11 +168,11 @@ static long eval_call(const char *func_name, ExprList *args) {
     /* 새 스코프 시작 (10wk symtab 확장) */
     sym_push_scope();
 
-    /* 매개변수에 인자값 바인딩 (10wk sym_set 사용) */
+    /* 매개변수에 인자값 바인딩 (현재 스코프에 선언) */
     Param *param = f->params ? f->params->head : NULL;
     int i = 0;
     while (param && i < arg_count) {
-        sym_set(param->name, arg_values[i]);
+        sym_declare(param->name, arg_values[i]);
         param = param->next;
         i++;
     }
@@ -204,12 +204,11 @@ static EvalResult eval_stmt(Stmt *s) {
 
     switch (s->kind) {
         case STMT_VARDECL: {
-            /* 10wk sym_set 사용 */
             long val = 0;
             if (s->u.vardecl.init_value) {
                 val = eval_expr(s->u.vardecl.init_value);
             }
-            sym_set(s->u.vardecl.var_name, val);
+            sym_declare(s->u.vardecl.var_name, val);
             break;
         }
 
