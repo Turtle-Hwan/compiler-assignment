@@ -26,6 +26,7 @@ extern FunctionList *g_program;
 /* 결과 버퍼 */
 #define RESULT_BUFSIZE 65536
 static char result_buffer[RESULT_BUFSIZE];
+static char ast_output_buffer[RESULT_BUFSIZE];
 static char asm_buffer[RESULT_BUFSIZE];
 static char exec_buffer[RESULT_BUFSIZE];
 
@@ -76,9 +77,22 @@ const char *compile_mini_js(const char *js_code) {
         return result_buffer;
     }
 
+    /* AST 시각화 */
+    append_to_buffer(result_buffer, RESULT_BUFSIZE, &result_pos,
+                     "=== AST ===\n");
+
+    ast_output_buffer[0] = '\0';
+    int ast_len = ast_to_buffer(g_program, ast_output_buffer, RESULT_BUFSIZE);
+    if (ast_len > 0) {
+        append_to_buffer(result_buffer, RESULT_BUFSIZE, &result_pos, ast_output_buffer);
+    } else {
+        append_to_buffer(result_buffer, RESULT_BUFSIZE, &result_pos,
+                         "(No AST generated)\n");
+    }
+
     /* 어셈블리 코드 생성 */
     append_to_buffer(result_buffer, RESULT_BUFSIZE, &result_pos,
-                     "=== x86-64 Assembly ===\n");
+                     "\n=== x86-64 Assembly ===\n");
 
     int asm_len = gen_x86_to_buffer(g_program, asm_buffer, RESULT_BUFSIZE);
     if (asm_len > 0) {

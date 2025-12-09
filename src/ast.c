@@ -335,3 +335,267 @@ void free_program(FunctionList *prog) {
     }
     free(prog);
 }
+
+/* === AST 시각화 === */
+
+#include <stdarg.h>
+
+/* 버퍼 관리 (static 상태) */
+static char *ast_buf = NULL;
+static int ast_bufsize = 0;
+static int ast_pos = 0;
+
+/* 버퍼에 출력 */
+static void ast_emit(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    if (ast_buf) {
+        int remaining = ast_bufsize - ast_pos;
+        if (remaining > 0) {
+            int written = vsnprintf(ast_buf + ast_pos, remaining, fmt, args);
+            if (written > 0) {
+                ast_pos += (written < remaining) ? written : (remaining - 1);
+            }
+        }
+    }
+    va_end(args);
+}
+
+/* 들여쓰기 (depth * 2칸) */
+static void ast_emit_indent(int depth) {
+    for (int i = 0; i < depth; i++) {
+        ast_emit("  ");
+    }
+}
+
+/* 이항 연산자 -> 문자열 */
+static const char* binop_to_string(BinOpKind op) {
+    switch (op) {
+        case BIN_ADD: return "+";
+        case BIN_SUB: return "-";
+        case BIN_MUL: return "*";
+        case BIN_DIV: return "/";
+        case BIN_MOD: return "%";
+        case BIN_LT:  return "<";
+        case BIN_GT:  return ">";
+        case BIN_LE:  return "<=";
+        case BIN_GE:  return ">=";
+        case BIN_EQ:  return "==";
+        case BIN_NE:  return "!=";
+        case BIN_AND: return "&&";
+        case BIN_OR:  return "||";
+        default:      return "?";
+    }
+}
+
+/* 단항 연산자 -> 문자열 */
+static const char* unary_to_string(UnaryOpKind op) {
+    switch (op) {
+        case UNARY_NEG: return "-";
+        case UNARY_NOT: return "!";
+        default:        return "?";
+    }
+}
+
+/* 전방 선언 */
+static void print_expr(Expr *e, int depth);
+static void print_stmt(Stmt *s, int depth);
+
+/* 표현식 노드 출력 */
+static void print_expr(Expr *e, int depth) {
+    if (!e) return;
+
+    ast_emit_indent(depth);
+
+    switch (e->kind) {
+        case EXPR_INT:
+            ast_emit("INT: %d\n", e->u.int_value);
+            break;
+
+        case EXPR_STRING:
+            ast_emit("STRING: \"%s\"\n", e->u.string_value ? e->u.string_value : "");
+            break;
+
+        case EXPR_VAR:
+            ast_emit("VAR: %s\n", e->u.var_name);
+            break;
+
+        case EXPR_BINOP:
+            ast_emit("BINOP: %s\n", binop_to_string(e->u.binop.op));
+            print_expr(e->u.binop.lhs, depth + 1);
+            print_expr(e->u.binop.rhs, depth + 1);
+            break;
+
+        case EXPR_CALL:
+            ast_emit("CALL: %s\n", e->u.call.func_name);
+            for (ExprList *arg = e->u.call.args; arg; arg = arg->next) {
+                print_expr(arg->expr, depth + 1);
+            }
+            break;
+
+        case EXPR_UNARY:
+            ast_emit("UNARY: %s\n", unary_to_string(e->u.unary.op));
+            print_expr(e->u.unary.operand, depth + 1);
+            break;
+    }
+}
+
+/* 문장 노드 출력 */
+static void print_stmt(Stmt *s, int depth) {
+    if (!s) return;
+
+    ast_emit_indent(depth);
+
+    switch (s->kind) {
+        case STMT_EXPR:
+            ast_emit("EXPR_STMT\n");
+            print_expr(s->u.expr, depth + 1);
+            break;
+
+        case STMT_RETURN:
+            ast_emit("RETURN\n");
+            if (s->u.expr) {
+                print_expr(s->u.expr, depth + 1);
+            }
+            break;
+
+        case STMT_VARDECL:
+            ast_emit("VARDECL: %s\n", s->u.vardecl.var_name);
+            if (s->u.vardecl.init_value) {
+                print_expr(s->u.vardecl.init_value, depth + 1);
+            }
+            break;
+
+        case STMT_ASSIGN:
+            ast_emit("ASSIGN: %s\n", s->u.assign.var_name);
+            print_expr(s->u.assign.value, depth + 1);
+            break;
+
+        case STMT_PRINT:
+            ast_emit("PRINT\n");
+            print_expr(s->u.expr, depth + 1);
+            break;
+
+        case STMT_IF:
+            ast_emit("IF\n");
+            ast_emit_indent(depth + 1);
+            ast_emit("COND:\n");
+            print_expr(s->u.if_stmt.cond, depth + 2);
+            ast_emit_indent(depth + 1);
+            ast_emit("THEN:\n");
+            print_stmt(s->u.if_stmt.then_stmt, depth + 2);
+            if (s->u.if_stmt.else_stmt) {
+                ast_emit_indent(depth + 1);
+                ast_emit("ELSE:\n");
+                print_stmt(s->u.if_stmt.else_stmt, depth + 2);
+            }
+            break;
+
+        case STMT_WHILE:
+            ast_emit("WHILE\n");
+            ast_emit_indent(depth + 1);
+            ast_emit("COND:\n");
+            print_expr(s->u.while_stmt.cond, depth + 2);
+            ast_emit_indent(depth + 1);
+            ast_emit("BODY:\n");
+            print_stmt(s->u.while_stmt.body, depth + 2);
+            break;
+
+        case STMT_FOR:
+            ast_emit("FOR\n");
+            if (s->u.for_stmt.init) {
+                ast_emit_indent(depth + 1);
+                ast_emit("INIT:\n");
+                print_stmt(s->u.for_stmt.init, depth + 2);
+            }
+            if (s->u.for_stmt.cond) {
+                ast_emit_indent(depth + 1);
+                ast_emit("COND:\n");
+                print_expr(s->u.for_stmt.cond, depth + 2);
+            }
+            if (s->u.for_stmt.step) {
+                ast_emit_indent(depth + 1);
+                ast_emit("STEP:\n");
+                print_stmt(s->u.for_stmt.step, depth + 2);
+            }
+            ast_emit_indent(depth + 1);
+            ast_emit("BODY:\n");
+            print_stmt(s->u.for_stmt.body, depth + 2);
+            break;
+
+        case STMT_BLOCK:
+            ast_emit("BLOCK\n");
+            if (s->u.block) {
+                for (Stmt *curr = s->u.block->head; curr; curr = curr->next) {
+                    print_stmt(curr, depth + 1);
+                }
+            }
+            break;
+    }
+}
+
+/* 함수 노드 출력 */
+static void print_function(Function *f, int depth) {
+    if (!f) return;
+
+    ast_emit_indent(depth);
+    ast_emit("Function: %s(", f->name);
+
+    /* 매개변수 */
+    if (f->params) {
+        Param *p = f->params->head;
+        int first = 1;
+        while (p) {
+            if (!first) ast_emit(", ");
+            ast_emit("%s", p->name);
+            first = 0;
+            p = p->next;
+        }
+    }
+    ast_emit(")\n");
+
+    /* 함수 본문 */
+    if (f->body) {
+        for (Stmt *s = f->body->head; s; s = s->next) {
+            print_stmt(s, depth + 1);
+        }
+    }
+}
+
+/* 공개 API: AST를 버퍼에 출력 */
+int ast_to_buffer(FunctionList *prog, char *buffer, int bufsize) {
+    if (!buffer || bufsize <= 0) {
+        return 0;
+    }
+
+    /* 버퍼 상태 초기화 */
+    ast_buf = buffer;
+    ast_bufsize = bufsize;
+    ast_pos = 0;
+    buffer[0] = '\0';
+
+    if (!prog) {
+        ast_emit("(No program)\n");
+    } else {
+        ast_emit("Program\n");
+        for (Function *f = prog->head; f; f = f->next) {
+            print_function(f, 1);
+        }
+    }
+
+    /* null 종료 보장 */
+    if (ast_pos < bufsize) {
+        buffer[ast_pos] = '\0';
+    } else {
+        buffer[bufsize - 1] = '\0';
+    }
+
+    int result = ast_pos;
+
+    /* 상태 초기화 */
+    ast_buf = NULL;
+    ast_bufsize = 0;
+    ast_pos = 0;
+
+    return result;
+}

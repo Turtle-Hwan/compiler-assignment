@@ -290,6 +290,7 @@ function main() {
                 </div>
                 <div class="output-tabs">
                     <button class="tab-btn active" onclick="showTab('all')" id="tab-all">All</button>
+                    <button class="tab-btn" onclick="showTab('ast')" id="tab-ast">AST</button>
                     <button class="tab-btn" onclick="showTab('asm')" id="tab-asm">Assembly</button>
                     <button class="tab-btn" onclick="showTab('exec')" id="tab-exec">Execution</button>
                 </div>
@@ -777,6 +778,7 @@ function main() {
         // Store results for tabs
         let lastResults = {
             all: '',
+            ast: '',
             asm: '',
             exec: ''
         };
@@ -835,10 +837,12 @@ function main() {
 
                     lastResults.all = result;
 
-                    // Extract assembly and execution parts
+                    // Extract AST, assembly and execution parts
+                    const astMatch = result.match(/=== AST ===([\s\S]*?)(?===|$)/);
                     const asmMatch = result.match(/=== x86-64 Assembly ===([\s\S]*?)(?===|$)/);
                     const execMatch = result.match(/=== Execution Result ===([\s\S]*?)(?===|$)/);
 
+                    lastResults.ast = astMatch ? astMatch[1].trim() : '(No AST)';
                     lastResults.asm = asmMatch ? asmMatch[1].trim() : '(No assembly generated)';
                     lastResults.exec = execMatch ? execMatch[1].trim() : '(No execution result)';
 

@@ -193,4 +193,7 @@ void free_stmt(Stmt *s);
 void free_function(Function *f);
 void free_program(FunctionList *prog);
 
+/* === AST 시각화 === */
+int ast_to_buffer(FunctionList *prog, char *buffer, int bufsize);
+
 #endif /* AST_H */
