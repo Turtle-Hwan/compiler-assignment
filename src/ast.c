@@ -1,0 +1,337 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "ast.h"
+
+/* 전역 프로그램 루트 */
+FunctionList *g_program = NULL;
+
+/* 문자열 복제 헬퍼 */
+static char *strdup_safe(const char *s) {
+    if (!s) return NULL;
+    size_t len = strlen(s) + 1;
+    char *p = (char *)malloc(len);
+    if (!p) {
+        fprintf(stderr, "out of memory\n");
+        exit(1);
+    }
+    memcpy(p, s, len);
+    return p;
+}
+
+/* === 표현식 생성 함수 === */
+
+Expr *new_int_expr(int value) {
+    Expr *e = (Expr *)calloc(1, sizeof(Expr));
+    e->kind = EXPR_INT;
+    e->u.int_value = value;
+    return e;
+}
+
+Expr *new_string_expr(const char *value) {
+    Expr *e = (Expr *)calloc(1, sizeof(Expr));
+    e->kind = EXPR_STRING;
+    e->u.string_value = strdup_safe(value);
+    return e;
+}
+
+Expr *new_var_expr(const char *name) {
+    Expr *e = (Expr *)calloc(1, sizeof(Expr));
+    e->kind = EXPR_VAR;
+    e->u.var_name = strdup_safe(name);
+    return e;
+}
+
+Expr *new_binop_expr(BinOpKind op, Expr *lhs, Expr *rhs) {
+    Expr *e = (Expr *)calloc(1, sizeof(Expr));
+    e->kind = EXPR_BINOP;
+    e->u.binop.op = op;
+    e->u.binop.lhs = lhs;
+    e->u.binop.rhs = rhs;
+    return e;
+}
+
+Expr *new_call_expr(const char *func_name, ExprList *args) {
+    Expr *e = (Expr *)calloc(1, sizeof(Expr));
+    e->kind = EXPR_CALL;
+    e->u.call.func_name = strdup_safe(func_name);
+    e->u.call.args = args;
+    return e;
+}
+
+Expr *new_unary_expr(UnaryOpKind op, Expr *operand) {
+    Expr *e = (Expr *)calloc(1, sizeof(Expr));
+    e->kind = EXPR_UNARY;
+    e->u.unary.op = op;
+    e->u.unary.operand = operand;
+    return e;
+}
+
+/* 표현식 리스트 추가 */
+ExprList *expr_list_append(ExprList *list, Expr *expr) {
+    ExprList *node = (ExprList *)calloc(1, sizeof(ExprList));
+    node->expr = expr;
+    node->next = NULL;
+
+    if (!list) return node;
+
+    ExprList *cur = list;
+    while (cur->next) cur = cur->next;
+    cur->next = node;
+    return list;
+}
+
+/* === 문장 생성 함수 === */
+
+Stmt *new_expr_stmt(Expr *e) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_EXPR;
+    s->u.expr = e;
+    return s;
+}
+
+Stmt *new_return_stmt(Expr *e) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_RETURN;
+    s->u.expr = e;
+    return s;
+}
+
+Stmt *new_vardecl_stmt(const char *name, Expr *init) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_VARDECL;
+    s->u.vardecl.var_name = strdup_safe(name);
+    s->u.vardecl.init_value = init;
+    return s;
+}
+
+Stmt *new_assign_stmt(const char *name, Expr *value) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_ASSIGN;
+    s->u.assign.var_name = strdup_safe(name);
+    s->u.assign.value = value;
+    return s;
+}
+
+Stmt *new_print_stmt(Expr *e) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_PRINT;
+    s->u.expr = e;
+    return s;
+}
+
+Stmt *new_if_stmt(Expr *cond, Stmt *then_stmt, Stmt *else_stmt) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_IF;
+    s->u.if_stmt.cond = cond;
+    s->u.if_stmt.then_stmt = then_stmt;
+    s->u.if_stmt.else_stmt = else_stmt;
+    return s;
+}
+
+Stmt *new_while_stmt(Expr *cond, Stmt *body) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_WHILE;
+    s->u.while_stmt.cond = cond;
+    s->u.while_stmt.body = body;
+    return s;
+}
+
+Stmt *new_for_stmt(Stmt *init, Expr *cond, Stmt *step, Stmt *body) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_FOR;
+    s->u.for_stmt.init = init;
+    s->u.for_stmt.cond = cond;
+    s->u.for_stmt.step = step;
+    s->u.for_stmt.body = body;
+    return s;
+}
+
+Stmt *new_block_stmt(StmtList *stmts) {
+    Stmt *s = (Stmt *)calloc(1, sizeof(Stmt));
+    s->kind = STMT_BLOCK;
+    s->u.block = stmts;
+    return s;
+}
+
+/* 문장 리스트 추가 */
+StmtList *stmt_list_append(StmtList *list, Stmt *stmt) {
+    if (!stmt) return list;
+    if (!list) {
+        list = (StmtList *)calloc(1, sizeof(StmtList));
+        list->head = list->tail = NULL;
+    }
+    if (!list->head) {
+        list->head = list->tail = stmt;
+    } else {
+        list->tail->next = stmt;
+        list->tail = stmt;
+    }
+    return list;
+}
+
+/* === 함수 및 매개변수 === */
+
+ParamList *param_list_append(ParamList *list, const char *name) {
+    Param *p = (Param *)calloc(1, sizeof(Param));
+    p->name = strdup_safe(name);
+    p->next = NULL;
+
+    if (!list) {
+        list = (ParamList *)calloc(1, sizeof(ParamList));
+        list->head = list->tail = NULL;
+    }
+    if (!list->head) {
+        list->head = list->tail = p;
+    } else {
+        list->tail->next = p;
+        list->tail = p;
+    }
+    return list;
+}
+
+Function *new_function(const char *name, ParamList *params, StmtList *body) {
+    Function *f = (Function *)calloc(1, sizeof(Function));
+    f->name = strdup_safe(name);
+    f->params = params;
+    f->body = body;
+    f->next = NULL;
+    return f;
+}
+
+FunctionList *function_list_append(FunctionList *list, Function *func) {
+    if (!func) return list;
+    if (!list) {
+        list = (FunctionList *)calloc(1, sizeof(FunctionList));
+        list->head = list->tail = NULL;
+    }
+    if (!list->head) {
+        list->head = list->tail = func;
+    } else {
+        list->tail->next = func;
+        list->tail = func;
+    }
+    return list;
+}
+
+/* === 메모리 해제 함수 === */
+
+void free_expr(Expr *e) {
+    if (!e) return;
+    switch (e->kind) {
+        case EXPR_STRING:
+            free(e->u.string_value);
+            break;
+        case EXPR_VAR:
+            free(e->u.var_name);
+            break;
+        case EXPR_BINOP:
+            free_expr(e->u.binop.lhs);
+            free_expr(e->u.binop.rhs);
+            break;
+        case EXPR_CALL: {
+            free(e->u.call.func_name);
+            ExprList *arg = e->u.call.args;
+            while (arg) {
+                ExprList *next = arg->next;
+                free_expr(arg->expr);
+                free(arg);
+                arg = next;
+            }
+            break;
+        }
+        case EXPR_UNARY:
+            free_expr(e->u.unary.operand);
+            break;
+        default:
+            break;
+    }
+    free(e);
+}
+
+void free_stmt(Stmt *s) {
+    if (!s) return;
+    switch (s->kind) {
+        case STMT_EXPR:
+        case STMT_RETURN:
+        case STMT_PRINT:
+            free_expr(s->u.expr);
+            break;
+        case STMT_VARDECL:
+            free(s->u.vardecl.var_name);
+            free_expr(s->u.vardecl.init_value);
+            break;
+        case STMT_ASSIGN:
+            free(s->u.assign.var_name);
+            free_expr(s->u.assign.value);
+            break;
+        case STMT_IF:
+            free_expr(s->u.if_stmt.cond);
+            free_stmt(s->u.if_stmt.then_stmt);
+            free_stmt(s->u.if_stmt.else_stmt);
+            break;
+        case STMT_WHILE:
+            free_expr(s->u.while_stmt.cond);
+            free_stmt(s->u.while_stmt.body);
+            break;
+        case STMT_FOR:
+            free_stmt(s->u.for_stmt.init);
+            free_expr(s->u.for_stmt.cond);
+            free_stmt(s->u.for_stmt.step);
+            free_stmt(s->u.for_stmt.body);
+            break;
+        case STMT_BLOCK: {
+            StmtList *block = s->u.block;
+            if (block) {
+                Stmt *curr = block->head;
+                while (curr) {
+                    Stmt *next = curr->next;
+                    curr->next = NULL;
+                    free_stmt(curr);
+                    curr = next;
+                }
+                free(block);
+            }
+            break;
+        }
+    }
+    free(s);
+}
+
+void free_function(Function *f) {
+    if (!f) return;
+    free(f->name);
+    if (f->params) {
+        Param *p = f->params->head;
+        while (p) {
+            Param *next = p->next;
+            free(p->name);
+            free(p);
+            p = next;
+        }
+        free(f->params);
+    }
+    if (f->body) {
+        Stmt *s = f->body->head;
+        while (s) {
+            Stmt *next = s->next;
+            s->next = NULL;
+            free_stmt(s);
+            s = next;
+        }
+        free(f->body);
+    }
+    free(f);
+}
+
+void free_program(FunctionList *prog) {
+    if (!prog) return;
+    Function *f = prog->head;
+    while (f) {
+        Function *next = f->next;
+        f->next = NULL;
+        free_function(f);
+        f = next;
+    }
+    free(prog);
+}
