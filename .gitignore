@@ -1,23 +1,23 @@
-# Build outputs
-build/
-minijs
-test_driver
+# # Build outputs
+# build/
+# minijs
+# test_driver
 
-# Generated parser/lexer files
-parser/lex.yy.c
-parser/parser.tab.c
-parser/parser.tab.h
+# # Generated parser/lexer files
+# parser/lex.yy.c
+# parser/parser.tab.c
+# parser/parser.tab.h
 
-# WebAssembly outputs
-docs/minijs.js
-docs/minijs.wasm
+# # WebAssembly outputs
+# docs/minijs.js
+# docs/minijs.wasm
 
-# Editor/IDE
-.vscode/
-*.swp
-*.swo
-*~
+# # Editor/IDE
+# .vscode/
+# *.swp
+# *.swo
+# *~
 
-# OS files
-.DS_Store
-Thumbs.db
+# # OS files
+# .DS_Store
+# Thumbs.db
