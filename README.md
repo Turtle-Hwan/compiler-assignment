@@ -1,6 +1,7 @@
 # MINI-JS Compiler
 
 ## 1. 개요 및 설계 의도
+배포 링크 : https://turtle-hwan.github.io/compiler-assignment/
 
 ### 1.1 개요
 
@@ -521,3 +522,4 @@ function square(x) {
 let result = square(10);
 console.log(result); // 100
 ```
+
